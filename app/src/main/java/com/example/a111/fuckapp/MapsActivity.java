@@ -2,6 +2,8 @@ package com.example.a111.fuckapp;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.arch.lifecycle.ViewModelProvider;
+import android.arch.lifecycle.ViewModelProviders;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -31,12 +33,14 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import android.content.Context;
 
 import java.util.ArrayList;
+import java.util.Arrays; //This is only for the TestarrayList to convert the Array
 import java.util.List;
+import android.util.Log;
 
 
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.Marker;
-
+import com.google.gson.Gson;
 
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback,
@@ -49,9 +53,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     Location mLastLocation;
     Marker mCurrLocationMarker;
     LocationRequest mLocationRequest;
+    EditText result;
+    ArrayList markers; // Just a Test but needs to be done anyway
+    ArrayList testmarkers; //only for the TestarrayList
+    SessionsViewModel mSessionsViewModel; //Instance of the Sessions View Model to handle the Database
     static boolean isLabellingActive = false;
     final Context context = this;
-    private EditText result;
 
 
     @Override
@@ -68,8 +75,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mapFragment.getMapAsync(this);
         result = (EditText) findViewById(R.id.editTextResult);
 
-    }
 
+        //Testarraylist
+        MarkerOptions[] testarray = {
+                new MarkerOptions().position(new LatLng(1.0,1.0)).title("Heinzi"),
+                new MarkerOptions().position(new LatLng(1.1,1.0)).title("Franzi"),
+                new MarkerOptions().position(new LatLng(1.0,1.1)).title("Seppi"),
+                new MarkerOptions().position(new LatLng(1.1,1.1)).title("Karli"),
+                new MarkerOptions().position(new LatLng(1.07,1.07)).title("Geri")
+        };
+        testmarkers = new ArrayList<>(Arrays.asList(testarray));
+
+        // mSessionsViewModel = ViewModelProviders.of(this).get(SessionsViewModel.class); does not work, actual point of progress
+
+    }
 
     /**
      * Manipulates the map once available.
@@ -222,6 +241,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
        this.isLabellingActive = ! this.isLabellingActive; // it's assigned its negation
     }
 
+    /** Called when the user touches the "Back" button */
+
+    public void toSessionsOverview(View view){
+        markers = testmarkers; //Give markers the values of testmarkers
+        Sessions session = new Sessions("Test",markers);
+        //mSessionsViewModel.insert(session); does not work actual point of progress
+
+
+        //SessionDAO mDAO;
+        //mDAO.insert(new Sessions("Test", markers));
+        //List<String> ergebniss = mDAO.getAllTitles();
+
+    }
 
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
