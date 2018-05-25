@@ -1,22 +1,26 @@
 package com.example.a111.fuckapp;
 
 import android.Manifest;
+import android.app.Activity;
 import android.app.AlertDialog;
-import android.arch.lifecycle.ViewModelProvider;
-import android.arch.lifecycle.ViewModelProviders;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.GpsSatellite;
+import android.location.GpsStatus;
 import android.location.Location;
+import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
-import android.text.Editable;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
-import android.view.View;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -30,26 +34,26 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import android.content.Context;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
-import java.util.Arrays; //This is only for the TestarrayList to convert the Array
-import java.util.List;
-import android.util.Log;
-
-
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.model.Marker;
-import com.google.gson.Gson;
+import java.util.Arrays;
+import java.util.Iterator;
 
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        LocationListener {
+        LocationListener,
+        GpsStatus.Listener{
 
     private GoogleMap mMap;
+    static int nSatellites = -1; // here we keep the metadata on the number of satellites
     GoogleApiClient mGoogleApiClient;
+    final int CODE_FOR_FILE_SAVING = 44; // documentation says we need this for some security reasons or whatever
     Location mLastLocation;
     Marker mCurrLocationMarker;
     LocationRequest mLocationRequest;
@@ -59,6 +63,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     SessionsViewModel mSessionsViewModel; //Instance of the Sessions View Model to handle the Database
     static boolean isLabellingActive = false;
     final Context context = this;
+    LocationManager locationManager = null;
+
+
 
 
     @Override
@@ -86,9 +93,31 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         };
         testmarkers = new ArrayList<>(Arrays.asList(testarray));
 
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        locationManager.addGpsStatusListener(this);
+
         // mSessionsViewModel = ViewModelProviders.of(this).get(SessionsViewModel.class); does not work, actual point of progress
 
     }
+
+
+
+    @Override // meta data
+    public void onGpsStatusChanged(int x) throws SecurityException{
+        GpsStatus gpsStatus = locationManager.getGpsStatus(null);
+        if(gpsStatus != null) {
+            Iterable<GpsSatellite>satellites = gpsStatus.getSatellites();
+            Iterator<GpsSatellite>sat = satellites.iterator();
+            nSatellites = 0;
+            while (sat.hasNext()) {
+                GpsSatellite satellite = sat.next();
+                if (satellite.usedInFix()){
+                    nSatellites += 1;
+                }
+            }
+        }
+    }
+
 
     /**
      * Manipulates the map once available.
@@ -141,7 +170,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                     final EditText userInput = (EditText) promptsView.findViewById(R.id.editTextDialogUserInput);
 
-                    final List<MarkerOptions> markers = new ArrayList<MarkerOptions>();
                     MarkerOptions markerOptions= new MarkerOptions().position(arg0).title((userInput.getText()).toString());
                     Marker m= mMap.addMarker(markerOptions);
                     m.showInfoWindow();
@@ -156,7 +184,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                             // get user input and set it to result
                                             // edit text
 
-                                            String new_note = arg0.toString()+" "+userInput.getText();
+                                            String new_note = "Point: \nlat/lon:" + arg0.toString() + "\n Meta: number of satellites: " + MapsActivity.nSatellites + " "+userInput.getText();
                                             result.append(new_note);
                                         }
                                     })
@@ -174,8 +202,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     alertDialog.show();
 
                 }
-
-
             }
         });
     }
@@ -290,6 +316,47 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         } else {
             return true;
         }
+    }
+
+    public void exportToTxt(View view){
+
+        String text = result.getText().toString();
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/plain");
+        startActivityForResult(intent, CODE_FOR_FILE_SAVING);
+
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == CODE_FOR_FILE_SAVING) {
+            switch (resultCode) {
+                case Activity.RESULT_OK:
+                    if (data != null
+                            && data.getData() != null) {
+                        writeInFile(data.getData(), result.getText().toString());
+                    }
+                    break;
+                case Activity.RESULT_CANCELED:
+                    break;
+            }
+        }
+    }
+// practically copy paste from docs
+    private void writeInFile(Uri uri, String text) {
+        OutputStream outputStream;
+        try {
+            outputStream = getContentResolver().openOutputStream(uri);
+            BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(outputStream));
+            bw.write(text);
+            bw.flush();
+            bw.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
     @Override
